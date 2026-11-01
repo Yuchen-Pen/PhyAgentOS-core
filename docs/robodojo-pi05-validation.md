@@ -1,6 +1,6 @@
 # RoboDojo＋Pi0.5 接入验证
 
-2026-11-01，在225完成了本期约定的单回合、运行中停止和同服务连续案例检查。
+在225完成了本期约定的单回合、运行中停止和同服务连续案例检查。
 这证明固定配置下的工程接入可用；验证只覆盖瓶子任务的一个初态与布局，不建立多任务成功率。
 使用说明见[示例 README](../example/robodojo-benchmark/README.md)，
 可校验的精简记录见[225-lifecycle.json](../example/robodojo-benchmark/validation/225-lifecycle.json)。
