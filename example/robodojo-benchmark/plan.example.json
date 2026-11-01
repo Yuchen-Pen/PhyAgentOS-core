@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {
+      "case_key": "example-bottles-initial-state-0",
+      "environment": {
+        "native_task_id": 0,
+        "task_name": "put_bottles_into_dustbin",
+        "init_state_id": 0,
+        "layout_seed": 0
+      }
+    }
+  ],
+  "rounds": 1,
+  "parallelism": 1,
+  "max_decisions": 1,
+  "episode_timeout_s": 1800,
+  "model_timeout_s": 1
+}

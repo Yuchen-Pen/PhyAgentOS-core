@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-01",
+  "purpose": "Integration acceptance evidence; not an aggregate benchmark success-rate claim.",
+  "core_base_commit": "a606ddfc193fc87968297a7901220c251f6de492",
+  "native_source_commit": "d827bc35b81f6625b10464660bb71ead3937f953",
+  "hardware": "RTX PRO 5000, simulation and Pi0.5 share GPU0",
+  "tests": {
+    "passed": 78,
+    "subtests": 16
+  },
+  "stop": {
+    "core_task_status": "cancelled",
+    "settled": true,
+    "native_phase_while_waiting": "stopping",
+    "worker_retained_until_boundary": true,
+    "queued_second_case_dispatched": false,
+    "meaning": "Episode-boundary stop, not an immediate robot emergency stop. The current episode finished successfully; the overall plan was cancelled."
+  },
+  "sequential": {
+    "core_task_status": "succeeded",
+    "settled": true,
+    "case_outcomes": [
+      "success",
+      "success"
+    ],
+    "serial_order_verified": true,
+    "distinct_core_and_native_ids": true
+  },
+  "lifecycle": {
+    "flow_id": "01a196f6-8259-737a-b7fa-17e839d74021",
+    "runtime_instance_id": "runtime_1b75750022b149c8",
+    "policy_model_initialization_messages": 1,
+    "policy_start_commands": 3,
+    "policy_idle_after_session_messages": 3
+  },
+  "episodes": [
+    {
+      "native_invocation": "gateway-225f375574c745bf8e33918bbff44927",
+      "core_scope": {
+        "attempt_id": "attempt_b219cf2a72804c8a8c51dc4e98b77151",
+        "binding_digest": "78999c6e770bcb1f5fd2611352ddb4014976efa57ebb84d57a719a31024dd1a6",
+        "run_id": "benchmark_4241999c2d4b4a96be2afdd74b3ea6d7",
+        "subtask_id": "task_66994f746b434aee:round:0000:episode:0000",
+        "task_id": "task_66994f746b434aee",
+        "worker_id": "robodojo-worker",
+        "world_epoch": "world_b9e5a73527894a169dcafe869cd791ea"
+      },
+      "case_key": "lifecycle-a",
+      "native_status": "succeeded",
+      "valid_episodes": 1,
+      "robot_success": true,
+      "termination": "success",
+      "steps": 476,
+      "native_elapsed_s": 67.4846122264862,
+      "frames": 477,
+      "terminal_frame_count_matches": true,
+      "result_sha256": "c65cf049e61c14424749d17c3fb6133d190946b62d23ce232ebdb027b09da298",
+      "video_sha256": "462898ae35a600f54da8d62cbcf932f933e4b81e8767fb0c84e814421740ae2c"
+    },
+    {
+      "native_invocation": "gateway-f0b134f0f6354bb6a8e875f280d7b864",
+      "core_scope": {
+        "attempt_id": "attempt_b59cc3a934914f59be0327c6706f5400",
+        "binding_digest": "83ecfa3993cf8dbca00b8f5c32fb4683dcb342633028f50f3ae88dec38e759ea",
+        "run_id": "benchmark_4fc227a7b1974f4098b20fc049c690d9",
+        "subtask_id": "task_11acabf071594e80:round:0000:episode:0000",
+        "task_id": "task_11acabf071594e80",
+        "worker_id": "robodojo-worker",
+        "world_epoch": "world_832e3ac2f93a4c0a876bf753546c833f"
+      },
+      "case_key": "lifecycle-a",
+      "native_status": "stopped",
+      "valid_episodes": 1,
+      "robot_success": true,
+      "termination": "success",
+      "steps": 486,
+      "native_elapsed_s": 116.82875227928162,
+      "frames": 487,
+      "terminal_frame_count_matches": true,
+      "result_sha256": "9734a9156e68f2f6cd7e22b150334ffc35e8e2a01c360dccf3395859c886fce1",
+      "video_sha256": "f0cb7d8bf47812b5d8e3a6ff121c133083b6042c68c10187faef9f9c41fdbdf2"
+    },
+    {
+      "native_invocation": "gateway-1157a335e1f24744a4b3dd71199012b6",
+      "core_scope": {
+        "attempt_id": "attempt_3d0cecc381cc4fe48a7c8817ad1f6f30",
+        "binding_digest": "78999c6e770bcb1f5fd2611352ddb4014976efa57ebb84d57a719a31024dd1a6",
+        "run_id": "benchmark_4241999c2d4b4a96be2afdd74b3ea6d7",
+        "subtask_id": "task_66994f746b434aee:round:0000:episode:0001",
+        "task_id": "task_66994f746b434aee",
+        "worker_id": "robodojo-worker",
+        "world_epoch": "world_bb4a220d95ee44509d83d631f8965b9f"
+      },
+      "case_key": "lifecycle-b",
+      "native_status": "succeeded",
+      "valid_episodes": 1,
+      "robot_success": true,
+      "termination": "success",
+      "steps": 480,
+      "native_elapsed_s": 64.61286616325378,
+      "frames": 481,
+      "terminal_frame_count_matches": true,
+      "result_sha256": "c2e46a1ba30a43b0806e6b603f612831ba61a4153907e3c9ced6f9b929048491",
+      "video_sha256": "31000b22bdb801791926a6ff05aa74910f9b683f5fa103a644aea236aed8d62b"
+    }
+  ],
+  "resources_released": true,
+  "limitations": [
+    "Single task, initial state and layout only.",
+    "No physical robot emergency-stop mechanism.",
+    "Unknown native-start acceptance cannot be automatically redispatched.",
+    "IsaacLab reused from a read-only existing installation without a Git commit identity.",
+    "Control stop entrypoint is CLI Ctrl+C/SIGTERM; no new web UI was added."
+  ]
+}

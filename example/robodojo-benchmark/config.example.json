@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "work_root": "/ABS/PATH/TO/personal-robodojo-runtime",
+  "source_repo": "/ABS/PATH/TO/PhyAgentOS-Repo",
+  "robodojo_root": "/ABS/PATH/TO/RoboDojo",
+  "models_receipt": "/ABS/PATH/TO/robodojo-pi05/pi05-models.json",
+  "gateway_archive": "/ABS/PATH/TO/gateway-1.1.1-linux-x86_64.tar.gz",
+  "python": {
+    "launcher": "/usr/bin/python3",
+    "simulation": "/ABS/PATH/TO/RoboDojo-env/bin/python",
+    "tool": "/ABS/PATH/TO/bench-tool-env/bin/python",
+    "policy": "/ABS/PATH/TO/Pi_05/openpi/.venv/bin/python"
+  },
+  "simulation_gpu": null,
+  "policy_gpu": null,
+  "gateway_port": 19031,
+  "suite": "put_bottles_into_dustbin",
+  "layout_seed": 0,
+  "max_steps": 700,
+  "step_limit_mode": "native",
+  "jax_memory_fraction": 0.3
+}
