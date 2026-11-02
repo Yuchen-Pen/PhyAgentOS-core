@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "scope": "offline refactor verification; not a new GPU evaluation",
+  "base_commit": "7b2f1aa2dc71e21fbfeea8dc236d42dd76de927a",
+  "tests": {
+    "passed": 95,
+    "subtests_passed": 30,
+    "warnings": [
+      "existing unknown pytest asyncio_mode option"
+    ]
+  },
+  "native_source_files_byte_identical": 45,
+  "legacy_journals_validated": 2,
+  "legacy_results_validated": [
+    {
+      "evidence_sha256": "269be0a6dba2f53ff1f78a969c3eaaaaa6fc1b29599f622ee2db86fabb1ff671",
+      "native_invocation": "gateway-c81cc0c482034f4bbcbaefaff27c88d2",
+      "outcome": "success",
+      "source_result_sha256": "718a17fef6cbfb9c5727af17fa4e56a24bdd01c8d73f5bddd4a2cfa223bd39af"
+    },
+    {
+      "evidence_sha256": "0e39c239ca6ccf8c6b0858e78de45fecd65a32d3176a0f609fad0d13ea78cc20",
+      "native_invocation": "gateway-f0b134f0f6354bb6a8e875f280d7b864",
+      "outcome": "success",
+      "source_result_sha256": "9734a9156e68f2f6cd7e22b150334ffc35e8e2a01c360dccf3395859c886fce1"
+    },
+    {
+      "evidence_sha256": "fdc86ee31e48fca91dea5aa0c330580e386a19d0f9204c16ac6c6cb8e87f95a4",
+      "native_invocation": "gateway-225f375574c745bf8e33918bbff44927",
+      "outcome": "success",
+      "source_result_sha256": "c65cf049e61c14424749d17c3fb6133d190946b62d23ce232ebdb027b09da298"
+    },
+    {
+      "evidence_sha256": "73499be013264ba9898d4de0df8d6c09df66ea77c281cc66c0026ed0afe2df0e",
+      "native_invocation": "gateway-1157a335e1f24744a4b3dd71199012b6",
+      "outcome": "success",
+      "source_result_sha256": "c2e46a1ba30a43b0806e6b603f612831ba61a4153907e3c9ced6f9b929048491"
+    }
+  ],
+  "patch_set": "robodojo-pi05-native/v1",
+  "catalogue_sha256": "6a4cd4e3d683e18fdd4bfa55e93f16da72de07f2261cccdc86f8992e263d585c",
+  "patch_files": 5,
+  "patch_edits": 15,
+  "new_sessions": 0,
+  "new_bundle_installed": false,
+  "gpu_started": false,
+  "paid_api_calls": 0,
+  "reference_archives": [
+    {
+      "archive": "forge-forge-msgs-v1.0.1.zip",
+      "sha256": "c23c6e85c6178a826035f1d575a37acbe9aff3eabac572a4b52a872a528b89e1",
+      "files": 213
+    },
+    {
+      "archive": "forge-master.zip",
+      "sha256": "0399d9c6395f0d30d9d37caddbfaf89a6356b32b669cf7f668e5bfa6706645ff",
+      "files": 287
+    },
+    {
+      "archive": "forge_gateway-master.zip",
+      "sha256": "a26cbeef6a02e6a8790fe3c838c7633d2f8be6dbad3350b01ed9e533359e8136",
+      "files": 109
+    }
+  ]
+}

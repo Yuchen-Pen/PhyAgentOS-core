@@ -1,13 +1,12 @@
 """Connect only to the native Skill managed under this deployment's own state."""
 
-import json
 from pathlib import Path
 
 from PhyAgentOS.skill_runtime.catalog import SkillCatalog
 from PhyAgentOS.skill_runtime.manager import RuntimeManager
 from PhyAgentOS.skill_runtime.state import RuntimeStateStore
 
-from preflight import sha256
+from support import verify_bundle
 from dora_scope import DoraScope
 
 NAME = "robodojo-bench-pi05"
@@ -26,14 +25,7 @@ class NativeRuntime:
 
     def verify_bundle(self):
         bundle = self.work / "skills" / NAME
-        if json.loads((bundle / "deployment.json").read_text()) != self.config:
-            raise ValueError("installed native Skill uses another deployment; rebuild before running")
-        provenance = json.loads((bundle / "PROVENANCE.json").read_text())
-        for relative, expected in provenance["bundled_files"].items():
-            path = (bundle / relative).resolve()
-            if not path.is_relative_to(bundle.resolve()) or sha256(path) != expected:
-                raise ValueError("native bundle source/config changed: " + relative)
-        return provenance
+        return verify_bundle(bundle, self.config)
 
     def require_ready(self):
         self.verify_bundle()

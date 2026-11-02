@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
 import subprocess
 from pathlib import Path
+
+from support import sha256
 
 UPSTREAM_COMMIT = "d827bc35b81f6625b10464660bb71ead3937f953"
 UPSTREAM_URL = "https://github.com/liuy2839/PhyAgentOS-Repo"
@@ -18,14 +19,6 @@ CONFIG_KEYS = {
     "gateway_archive", "python", "simulation_gpu", "policy_gpu", "gateway_port",
     "suite", "layout_seed", "max_steps", "step_limit_mode", "jax_memory_fraction",
 }
-
-
-def sha256(path: Path) -> str:
-    result = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(8 * 1024**2), b""):
-            result.update(chunk)
-    return result.hexdigest()
 
 
 def absolute(value, name):

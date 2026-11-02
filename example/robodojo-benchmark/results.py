@@ -7,40 +7,26 @@ import os
 from pathlib import Path
 
 from step_limits import resolve_step_limit
-
-
-def require(condition, message):
-    if not condition:
-        raise ValueError(message)
-
-
-def json_bytes(value):
-    return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
-
-
-def immutable_file(path, content):
-    """Keep failed and successful evidence; replays must have identical bytes."""
-    path = Path(path)
-    try:
-        with path.open("xb") as output:
-            output.write(content)
-            output.flush()
-            os.fsync(output.fileno())
-    except FileExistsError:
-        require(path.read_bytes() == content, "evidence changed on replay: " + path.name)
+from support import immutable_file, json_bytes, require
 
 
 def finite(value):
     return type(value) in (float, int) and math.isfinite(value)
 
 
-def validate_result(config, case, invocation, envelope, native_phase):
-    tool = envelope["data"]["result"]
+def validate_tool_result(tool, invocation):
     require(isinstance(tool, dict), "ToolResult must be an object")
     require(tool.get("status") in {"succeeded", "failed", "stopped"}, "invalid ToolResult status")
     outputs = tool.get("outputs", {})
     require(isinstance(outputs, dict), "ToolResult outputs must be an object")
     require(outputs.get("run_id") == invocation, "native result invocation does not match acceptance")
+    return outputs
+
+
+def validate_result(config, case, invocation, envelope, native_phase):
+    require(isinstance(envelope, dict) and isinstance(envelope.get("data"), dict), "invalid result envelope")
+    tool = envelope["data"].get("result")
+    outputs = validate_tool_result(tool, invocation)
     path = Path(outputs.get("result_file") or "")
     allowed = Path(config["work_root"]) / "results"
     require(allowed.resolve() == allowed and not allowed.is_symlink(), "results directory is redirected")
@@ -54,11 +40,33 @@ def validate_result(config, case, invocation, envelope, native_phase):
     def bad_constant(value):
         raise ValueError("non-finite JSON number: " + value)
     raw = json.loads(content, parse_constant=bad_constant)
+    summary = validate_native_result(config, case, invocation, tool, raw, native_phase)
+    video = None
+    episodes = raw["episodes"]
+    if episodes and episodes[0].get("metrics", {}).get("video"):
+        video_path = Path(episodes[0]["metrics"]["video"])
+        video_root = Path(config["work_root"]) / "videos" / invocation
+        require(video_root.resolve() == video_root and video_path.is_absolute()
+                and video_path.resolve().parent == video_root and not video_path.is_symlink(),
+                "video path is outside this native Session's directory")
+        checksum = hashlib.sha256()
+        with video_path.open("rb") as source:
+            while data := source.read(1024 * 1024):
+                checksum.update(data)
+        video = {"path": str(video_path), "sha256": checksum.hexdigest(), "bytes": video_path.stat().st_size}
+    return {**summary, "native_result": raw, "video": video,
+            "result_path": str(path), "result_sha256": hashlib.sha256(content).hexdigest()}, content
+
+
+def validate_native_result(config, case, invocation, tool, raw, native_phase):
+    """Pure structure/identity/count/budget validation, shared by every archive."""
+    outputs = validate_tool_result(tool, invocation)
     require(isinstance(raw, dict), "native result must be an object")
     require(raw.get("schema_version") == "benchmark_execution_result_v1", "unsupported native result schema")
     require(raw.get("execution_mode") == "target_native", "unexpected execution mode")
     require(raw.get("benchmark") == "robodojo" and raw.get("suite") == config["suite"], "platform/suite mismatch")
-    require(raw.get("seed") == case["environment"]["layout_seed"], "layout directory seed mismatch")
+    require(type(raw.get("seed")) is int and raw["seed"] == case["environment"]["layout_seed"],
+            "layout directory seed mismatch")
     repro = raw.get("reproducibility", {})
     require(isinstance(repro, dict), "reproducibility must be an object")
     require(not repro.get("stub"), "stub result is not an actual evaluation")
@@ -90,6 +98,8 @@ def validate_result(config, case, invocation, envelope, native_phase):
     outcome, native_score = "infra_error", None
     if episodes:
         episode = episodes[0]
+        metrics = episode.get("metrics", {})
+        require(isinstance(metrics, dict), "episode metrics must be an object")
         env = case["environment"]
         require(type(episode.get("task_id")) is int and episode["task_id"] == env["native_task_id"]
                 and type(episode.get("init_state_id")) is int and episode["init_state_id"] == env["init_state_id"]
@@ -98,14 +108,13 @@ def validate_result(config, case, invocation, envelope, native_phase):
         require(type(episode.get("num_steps")) is int and episode["num_steps"] >= 0
                 and type(raw.get("num_steps")) is int and raw["num_steps"] == episode["num_steps"], "invalid step count")
         if episode.get("error_code") is None and not tool.get("error") and status != "failed":
-            metrics = episode.get("metrics", {})
-            require(isinstance(metrics, dict), "episode metrics must be an object")
             limits = metrics.get("step_limits", {})
             require(isinstance(limits, dict), "step limits must be an object")
             require(limits == resolve_step_limit(config["max_steps"], limits.get("native_horizon"),
                                                 config["step_limit_mode"]), "step budget audit mismatch")
             horizon = limits["effective_max_steps"]
-            require(raw.get("max_steps") == horizon and episode["num_steps"] <= horizon, "effective horizon mismatch")
+            require(type(raw.get("max_steps")) is int and raw["max_steps"] == horizon
+                    and episode["num_steps"] <= horizon, "effective horizon mismatch")
             require(type(metrics.get("layout_id")) is int and metrics["layout_id"] >= 0, "missing actual layout ID")
             termination = episode.get("termination")
             require(termination in {"success", "failed", "partial", "timed_out"}, "unsupported termination")
@@ -114,20 +123,7 @@ def validate_result(config, case, invocation, envelope, native_phase):
             outcome, native_score = ("success" if episode["success"] else "failure"), score
     elif status == "stopped" and not tool.get("error"):
         outcome = "cancelled"
-    video = None
-    if episodes and episodes[0].get("metrics", {}).get("video"):
-        video_path = Path(episodes[0]["metrics"]["video"])
-        video_root = Path(config["work_root"]) / "videos" / invocation
-        require(video_root.resolve() == video_root and video_path.is_absolute()
-                and video_path.resolve().parent == video_root and not video_path.is_symlink(),
-                "video path is outside this native Session's directory")
-        checksum = hashlib.sha256()
-        with video_path.open("rb") as source:
-            while data := source.read(1024 * 1024):
-                checksum.update(data)
-        video = {"path": str(video_path), "sha256": checksum.hexdigest(), "bytes": video_path.stat().st_size}
-    return {"outcome": outcome, "native_score": native_score, "native_result": raw, "video": video,
-            "result_path": str(path), "result_sha256": hashlib.sha256(content).hexdigest()}, content
+    return {"outcome": outcome, "native_score": native_score}
 
 
 def archive_result(directory, scope, config, case, invocation, envelope, native_phase):

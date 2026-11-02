@@ -284,6 +284,24 @@ class BenchmarkTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(BlockingIOError):
             RoboDojoAdapter(self.native, plan())
 
+    async def test_stopping_historical_root_cannot_stop_the_current_owner(self):
+        await self.submit(self.start_args())
+        await self.snapshot()
+        old_invocation = self.adapter.state['roots']['task']['session_invocation_id']
+        await self.private.stop_session(old_invocation)
+        self.adapter.close()
+        self.adapter = RoboDojoAdapter(self.native, plan(), allow_new_batch=True)
+        self.private._client._transport.adapter = self.adapter
+        await self.private.start_session('benchmark.run', {'task_id': 'task2', 'run_id': 'core-run2',
+            'binding_digest': 'binding2', 'plan_digest': digest(self.adapter.plan)})
+        self.gateway.pending = True
+        await self.submit(self.start_args(task_id='task2', run_id='core-run2', binding_digest='binding2',
+                                         subtask_id='child2', request_id='start2'))
+        await self.private.stop_session(old_invocation)
+        self.assertEqual(self.gateway.stops, [])
+        self.assertEqual(self.adapter.state['active'], 'child2')
+        self.assertFalse(self.adapter.state['roots']['task2']['stop_requested'])
+
     async def test_changed_journal_refuses_dispatch_before_native_post(self):
         self.adapter.path.write_text("{}")
         with self.assertRaisesRegex(RuntimeError, "journal"):
@@ -453,6 +471,18 @@ class ResultTests(unittest.TestCase):
         self.raw["valid_episodes"] = 0
         self.assertEqual(self.validate()["outcome"], "infra_error")
 
+    def test_shared_structure_validator_rejects_malformed_metrics_and_boolean_seed(self):
+        from results import validate_native_result
+        from support import BenchmarkError, ErrorCode
+        for mutate in (lambda raw: raw.update(seed=False),
+                       lambda raw: raw['episodes'][0].update(metrics=[]),
+                       lambda raw: raw.update(total_episodes=True)):
+            raw = copy.deepcopy(self.raw)
+            mutate(raw)
+            with self.subTest(raw=raw), self.assertRaises(BenchmarkError) as failure:
+                validate_native_result(self.config, case(), 'native-1', self.tool, raw, 'completed')
+            self.assertEqual(failure.exception.code, ErrorCode.RESULT_INVALID)
+
     def test_stub_wrong_identity_and_inconsistent_counts_are_rejected(self):
         original = copy.deepcopy(self.raw)
         for change in (lambda r: r["reproducibility"].update(stub=True),
@@ -519,7 +549,9 @@ class PlanAndRuntimeTests(unittest.TestCase):
             bundle = root / "skills/robodojo-bench-pi05"
             bundle.mkdir(parents=True)
             (bundle / "deployment.json").write_text(json.dumps(config))
-            (bundle / "PROVENANCE.json").write_text(json.dumps({"bundled_files": {}}))
+            from support import sha256
+            (bundle / "PROVENANCE.json").write_text(json.dumps({"bundled_files": {
+                "deployment.json": sha256(bundle / "deployment.json")}}))
             with self.assertRaisesRegex(ValueError, "unmanaged Gateway"):
                 NativeRuntime(config).require_ready()
 

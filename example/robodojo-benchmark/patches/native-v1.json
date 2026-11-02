@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "patch_set": "robodojo-pi05-native/v1",
+  "upstream_commit": "d827bc35b81f6625b10464660bb71ead3937f953",
+  "patches": [
+    {
+      "id": "camera-rendering",
+      "path": "main.py",
+      "edits": [
+        {
+          "id": "enable-zero-delay-cameras",
+          "before": "    app_args.headless = True\n",
+          "after": "    app_args.headless = True\n    app_args.enable_cameras = True\n    from env.camera_manager.capture.render_sync import add_zero_delay_kit_args\n    add_zero_delay_kit_args(app_args)\n"
+        }
+      ]
+    },
+    {
+      "id": "adapter-budget-render",
+      "path": "adapters/robodojo_adapter.py",
+      "edits": [
+        {
+          "id": "horizon-audit",
+          "before": "        env_lim = int(getattr(env, \"step_lim\", 0) or 0)\n        if env_lim and env_lim != self.cfg.max_steps:\n            self._log(f\"按环境的 step_lim 修正 max_steps：{self.cfg.max_steps} → {env_lim}\")\n            self.cfg.max_steps = env_lim\n",
+          "after": "        from _core.step_limits import resolve_step_limit\n        self._step_limits = resolve_step_limit(\n            int(self.cfg.max_steps), int(getattr(env, \"step_lim\", 0) or 0),\n            os.environ[\"ROBODOJO_STEP_LIMIT_MODE\"],\n        )\n        self.cfg.max_steps = self._step_limits[\"effective_max_steps\"]\n        self._log(f\"step limits: {self._step_limits}\")\n"
+        },
+        {
+          "id": "policy-budget-identity",
+          "before": "            \"policy_id\": self.cfg.policy_id,",
+          "after": "            \"policy_id\": self.cfg.policy_id,\n            \"step_limit_mode\": os.environ[\"ROBODOJO_STEP_LIMIT_MODE\"],"
+        },
+        {
+          "id": "layout-render-metrics",
+          "before": "                \"layout_id\": self._current_layout_id,",
+          "after": "                \"layout_id\": self._current_layout_id,\n                \"step_limits\": dict(self._step_limits),\n                \"render_state_sync\": dict(self._render_state_sync),"
+        },
+        {
+          "id": "terminal-observation-capture",
+          "before": "        self._env = create_eval_env(self._build_env_cfg(task_name), self._app)\n",
+          "after": "        self._env = create_eval_env(self._build_env_cfg(task_name), self._app)\n        from _core.render_state import TerminalObservation\n        self._terminal_frame = TerminalObservation(self._env)\n"
+        },
+        {
+          "id": "reset-render-guard",
+          "before": "        env.reset(seed=[layout_id])\n",
+          "after": "        self._terminal_frame.observation = None\n        env.reset(seed=[layout_id])\n        import carb.settings\n        from _core.render_state import verify_render_sync\n        self._render_state_sync = verify_render_sync(\n            env.sim.sim, carb.settings.get_settings(), os.environ[\"ROBODOJO_RENDER_GPU_INDEX\"])\n"
+        },
+        {
+          "id": "terminal-observation-reuse",
+          "before": "            self._last_obs = env.get_obs()\n",
+          "after": "            self._last_obs = env.get_obs()\n        elif self._terminal_frame.observation is not None:\n            self._last_obs = self._terminal_frame.observation\n"
+        }
+      ]
+    },
+    {
+      "id": "session-video-isolation",
+      "path": "_core/session.py",
+      "edits": [
+        {
+          "id": "path-import",
+          "before": "import time\n",
+          "after": "import time\nfrom pathlib import Path\n"
+        },
+        {
+          "id": "invocation-video-directory",
+          "before": "            max_steps=int(plan[\"max_steps\"]),",
+          "after": "            max_steps=int(plan[\"max_steps\"]),\n            record_dir=(str(Path(cfg_template.record_dir) / invocation_id)\n                        if cfg_template.record_dir else None),"
+        }
+      ]
+    },
+    {
+      "id": "runner-session-boundary",
+      "path": "_core/runner.py",
+      "edits": [
+        {
+          "id": "pause-or-exit",
+          "before": "            lambda: self.policy_command(\"stop\"),",
+          "after": "            lambda: self.policy_command(\"stop\" if self.close_adapter_on_finish else \"pause\"),"
+        },
+        {
+          "id": "record-terminal-frame",
+          "before": "        self.last_metrics = outcome.metrics or {}\n",
+          "after": "        self.last_metrics = outcome.metrics or {}\n        from .render_state import record_final_frame\n        record_final_frame(self.recorder, self.adapter, outcome, self.step_idx, self.cfg.max_steps)\n"
+        }
+      ]
+    },
+    {
+      "id": "persistent-policy",
+      "path": "policy_node.py",
+      "edits": [
+        {
+          "id": "wait-for-reset",
+          "before": "                phase = \"running\"\n",
+          "after": "                phase = \"awaiting_reset\"\n"
+        },
+        {
+          "id": "pause-between-sessions",
+          "before": "            elif cmd.command in (\"stop\", \"cancel\"):\n",
+          "after": "            elif cmd.command == \"pause\":\n                phase = \"idle\"\n                state, images, fresh = None, {}, set()\n                chunk, chunk_pos = [], 0\n                log(\"Session finished; policy remains idle for the next case\")\n            elif cmd.command in (\"stop\", \"cancel\"):\n"
+        },
+        {
+          "id": "preserve-native-double-reset",
+          "before": "                model.reset()\n                model.reset()\n",
+          "after": "                model.reset()\n                model.reset()\n                phase = \"running\"\n"
+        },
+        {
+          "id": "ignore-inactive-observations",
+          "before": "        if eid == \"proprio_state\":\n",
+          "after": "        if phase != \"running\":\n            continue\n\n        if eid == \"proprio_state\":\n"
+        }
+      ]
+    }
+  ]
+}

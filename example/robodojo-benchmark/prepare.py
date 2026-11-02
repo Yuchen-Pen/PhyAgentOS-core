@@ -15,82 +15,10 @@ from pathlib import Path
 import yaml
 
 from preflight import UPSTREAM_COMMIT, UPSTREAM_URL, load_config, sha256, source_identity
+from source_patches import CATALOGUE, apply_native_patches
+from support import deployment_identity
 
 HERE = Path(__file__).resolve().parent
-
-
-def replace_once(text, old, new):
-    if text.count(old) != 1:
-        raise ValueError("pinned upstream patch does not apply exactly once")
-    return text.replace(old, new, 1)
-
-
-def patch_adapter(text):
-    # Keep the pinned upstream rollout. Make its previous silent horizon overwrite explicit.
-    old = '''        env_lim = int(getattr(env, "step_lim", 0) or 0)
-        if env_lim and env_lim != self.cfg.max_steps:
-            self._log(f"按环境的 step_lim 修正 max_steps：{self.cfg.max_steps} → {env_lim}")
-            self.cfg.max_steps = env_lim
-'''
-    new = '''        from _core.step_limits import resolve_step_limit
-        self._step_limits = resolve_step_limit(
-            int(self.cfg.max_steps), int(getattr(env, "step_lim", 0) or 0),
-            os.environ["ROBODOJO_STEP_LIMIT_MODE"],
-        )
-        self.cfg.max_steps = self._step_limits["effective_max_steps"]
-        self._log(f"step limits: {self._step_limits}")
-'''
-    text = replace_once(text, old, new)
-    text = replace_once(text, '            "policy_id": self.cfg.policy_id,',
-                        '            "policy_id": self.cfg.policy_id,\n'
-                        '            "step_limit_mode": os.environ["ROBODOJO_STEP_LIMIT_MODE"],')
-    text = replace_once(text, '                "layout_id": self._current_layout_id,',
-                        '                "layout_id": self._current_layout_id,\n'
-                        '                "step_limits": dict(self._step_limits),\n'
-                        '                "render_state_sync": dict(self._render_state_sync),')
-    text = replace_once(text, '        self._env = create_eval_env(self._build_env_cfg(task_name), self._app)\n',
-                        '        self._env = create_eval_env(self._build_env_cfg(task_name), self._app)\n'
-                        '        from _core.render_state import TerminalObservation\n'
-                        '        self._terminal_frame = TerminalObservation(self._env)\n')
-    text = replace_once(text, '        env.reset(seed=[layout_id])\n',
-                        '        self._terminal_frame.observation = None\n'
-                        '        env.reset(seed=[layout_id])\n'
-                        '        import carb.settings\n'
-                        '        from _core.render_state import verify_render_sync\n'
-                        '        self._render_state_sync = verify_render_sync(\n'
-                        '            env.sim.sim, carb.settings.get_settings(), os.environ["ROBODOJO_RENDER_GPU_INDEX"])\n')
-    return replace_once(text, '            self._last_obs = env.get_obs()\n',
-                        '            self._last_obs = env.get_obs()\n'
-                        '        elif self._terminal_frame.observation is not None:\n'
-                        '            self._last_obs = self._terminal_frame.observation\n')
-
-
-def patch_session(text):
-    # Native video names repeat for every Session. Separate their directories
-    # before creating the runner so a later case cannot overwrite earlier video.
-    text = replace_once(text, "import time\n", "import time\nfrom pathlib import Path\n")
-    return replace_once(text, '            max_steps=int(plan["max_steps"]),',
-                        '            max_steps=int(plan["max_steps"]),\n'
-                        '            record_dir=(str(Path(cfg_template.record_dir) / invocation_id)\n'
-                        '                        if cfg_template.record_dir else None),')
-
-
-def patch_policy(text):
-    text = replace_once(text, '                phase = "running"\n',
-                        '                phase = "awaiting_reset"\n')
-    text = replace_once(text, '            elif cmd.command in ("stop", "cancel"):\n',
-                        '            elif cmd.command == "pause":\n'
-                        '                phase = "idle"\n'
-                        '                state, images, fresh = None, {}, set()\n'
-                        '                chunk, chunk_pos = [], 0\n'
-                        '                log("Session finished; policy remains idle for the next case")\n'
-                        '            elif cmd.command in ("stop", "cancel"):\n')
-    text = replace_once(text, '                model.reset()\n                model.reset()\n',
-                        '                model.reset()\n                model.reset()\n'
-                        '                phase = "running"\n')
-    return replace_once(text, '        if eid == "proprio_state":\n',
-                        '        if phase != "running":\n            continue\n\n'
-                        '        if eid == "proprio_state":\n')
 
 
 def gateway_lock(archive):
@@ -140,27 +68,11 @@ def build(config, output):
             shutil.copyfile(source, target)
         shutil.copyfile(repo / "LICENSE", bundle / "UPSTREAM_LICENSE.txt")
         original_hashes = {(repo / p).relative_to(upstream).as_posix(): sha256(repo / p) for p in tracked}
-        main = bundle / 'assets/robodojo/main.py'
-        main.write_text(replace_once(main.read_text(), '    app_args.headless = True\n',
-                                     '    app_args.headless = True\n    app_args.enable_cameras = True\n'
-                                     '    from env.camera_manager.capture.render_sync import add_zero_delay_kit_args\n'
-                                     '    add_zero_delay_kit_args(app_args)\n'))
-        target = bundle / "assets/robodojo/adapters/robodojo_adapter.py"
-        target.write_text(patch_adapter(target.read_text()))
-        session = bundle / "assets/robodojo/_core/session.py"
-        session.write_text(patch_session(session.read_text()))
-        runner = bundle / 'assets/robodojo/_core/runner.py'
-        runner.write_text(replace_once(runner.read_text(), '            lambda: self.policy_command("stop"),',
-                                      '            lambda: self.policy_command("stop" if self.close_adapter_on_finish else "pause"),'))
-        runner.write_text(replace_once(runner.read_text(), '        self.last_metrics = outcome.metrics or {}\n',
-                                      '        self.last_metrics = outcome.metrics or {}\n'
-                                      '        from .render_state import record_final_frame\n'
-                                      '        record_final_frame(self.recorder, self.adapter, outcome, self.step_idx, self.cfg.max_steps)\n'))
-        policy = bundle / 'assets/robodojo/policy_node.py'
-        policy.write_text(patch_policy(policy.read_text()))
+        patch_receipt = apply_native_patches(bundle / "assets/robodojo")
+        shutil.copyfile(CATALOGUE, bundle / "NATIVE_PATCHES.json")
         shutil.copyfile(HERE / "step_limits.py", bundle / "assets/robodojo/_core/step_limits.py")
         shutil.copyfile(HERE / "render_state.py", bundle / "assets/robodojo/_core/render_state.py")
-        for name in ("launch.py", "preflight.py"):
+        for name in ("launch.py", "preflight.py", "support.py"):
             shutil.copyfile(HERE / name, bundle / name)
         (bundle / "deployment.json").write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n")
         profile = bundle / "profiles/pi05"
@@ -226,7 +138,8 @@ def build(config, output):
                 "dataflow": "profiles/pi05/dataflow.yaml", "startup_timeout_s": 900,
                 "required_binaries": ["gateway"],
                 "required_assets": ["profiles/pi05/gateway.yaml", "profiles/pi05/bench_config.yaml",
-                                    "deployment.json", "PROVENANCE.json", "launch.py", "preflight.py"],
+                                    "deployment.json", "PROVENANCE.json", "NATIVE_PATCHES.json",
+                                    "launch.py", "preflight.py", "support.py"],
                 "required_environment": [], "environment": {},
             }},
             "artifacts": {"resolver": "local", "nodes": {"gateway": lock}},
@@ -235,6 +148,8 @@ def build(config, output):
         provenance = {
             "upstream_url": UPSTREAM_URL, "upstream_commit": UPSTREAM_COMMIT,
             "upstream_files": original_hashes,
+            "deployment_identity": deployment_identity(config),
+            "patches": patch_receipt,
             "changes": ["Explicit native/cap horizon and metrics in robodojo_adapter.py",
                         "Enable Isaac Lab camera rendering for real RGB policy observations",
                         "Pause the persistent policy between Sessions; keep native two resets and RNG semantics",

@@ -179,9 +179,13 @@ Core `task.status=succeeded` 表示评测已完整结算，不能独自证明机
 ```bash
 python -m pytest -q tests/test_robodojo_profile.py tests/test_robodojo_assets.py \
   tests/test_robodojo_models.py tests/test_robodojo_benchmark.py \
-  tests/test_robodojo_service.py tests/test_robodojo_render_state.py
+  tests/test_robodojo_service.py tests/test_robodojo_render_state.py \
+  tests/test_robodojo_refactor.py
 ```
 
 以上命令在仓库根目录执行；服务归属测试需要本地监听 socket，但不启动模型、GPU 或付费 API。
 模拟 Gateway 结果只证明工程行为。真实回合和停止／连续案例证据另见[验证报告](../../docs/robodojo-pi05-validation.md)。
 目前验证范围是单一瓶子任务／初态／布局，不建立多任务成功率或策略泛化结论；没有在线 Lesson、外层 VLM 或性能收益对照。
+
+状态、补丁及公共校验的集中实现见 [Forge 实现对齐说明](../../docs/robodojo-forge-unification.md)。
+本轮 95 项离线测试通过，真实源码的 45 个原生文件与已验证版本逐字节相同；未新增 GPU 评测。

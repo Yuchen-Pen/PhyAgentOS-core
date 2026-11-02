@@ -11,7 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from preflight import load_config, model_resource, sha256
+from preflight import load_config, model_resource
+from support import verify_bundle
 
 
 def library_paths(python):
@@ -54,11 +55,7 @@ def graphics_environment(config, environment):
 def launch_plan(bundle, role, inherited=None):
     bundle = Path(bundle).resolve()
     config = load_config(bundle / "deployment.json")
-    provenance = json.loads((bundle / "PROVENANCE.json").read_text())
-    for relative, expected in provenance["bundled_files"].items():
-        path = (bundle / relative).resolve()
-        if not path.is_relative_to(bundle) or sha256(path) != expected:
-            raise ValueError("bundled source/config changed: " + relative)
+    verify_bundle(bundle, config)
     python = config["python"][role]
     if not Path(python).is_file() or not os.access(python, os.X_OK):
         raise ValueError("Python executable unavailable: " + python)
